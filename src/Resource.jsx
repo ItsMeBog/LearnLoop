@@ -35,7 +35,11 @@ const Resource = () => {
   const [loading, setLoading] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, storagePath: null });
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    id: null,
+    storagePath: null,
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState(emptyForm);
   const [pendingFile, setPendingFile] = useState(null);
@@ -180,7 +184,9 @@ const Resource = () => {
 
       if (error) throw error;
 
-      setResources(resources.filter((resource) => resource.id !== deleteModal.id));
+      setResources(
+        resources.filter((resource) => resource.id !== deleteModal.id),
+      );
       setDeleteModal({ isOpen: false, id: null, storagePath: null });
     } catch (error) {
       alert(error.message || "Failed to delete resource.");
@@ -213,12 +219,10 @@ const Resource = () => {
       resources.filter(
         (resource) =>
           resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          resource.subject.toLowerCase().includes(searchQuery.toLowerCase())
+          resource.subject.toLowerCase().includes(searchQuery.toLowerCase()),
       ),
-    [resources, searchQuery]
+    [resources, searchQuery],
   );
-
-  
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen bg-slate-50/50">
@@ -244,7 +248,10 @@ const Resource = () => {
       </div>
 
       <div className="relative mb-6 md:mb-10">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        <Search
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+          size={16}
+        />
         <input
           type="text"
           placeholder="Search materials..."
@@ -279,7 +286,11 @@ const Resource = () => {
                       : "bg-rose-50 text-rose-500"
                   }`}
                 >
-                  {resource.type === "Link" ? <LinkIcon size={18} /> : <FileText size={18} />}
+                  {resource.type === "Link" ? (
+                    <LinkIcon size={18} />
+                  ) : (
+                    <FileText size={18} />
+                  )}
                 </div>
 
                 <button
@@ -338,7 +349,10 @@ const Resource = () => {
               </button>
             </div>
 
-            <form onSubmit={handleAddResource} className="space-y-4 md:space-y-6">
+            <form
+              onSubmit={handleAddResource}
+              className="space-y-4 md:space-y-6"
+            >
               <div className="text-left">
                 <label className="text-[9px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">
                   Type
@@ -370,7 +384,12 @@ const Resource = () => {
                   <span className="text-[10px] md:text-sm text-slate-500 font-bold px-4 text-center line-clamp-1">
                     {formData.fileName || "Upload PDF"}
                   </span>
-                  <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
                 </label>
               ) : (
                 <div className="text-left">
@@ -382,7 +401,9 @@ const Resource = () => {
                     className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl mt-1.5 text-xs md:text-sm font-medium focus:bg-white focus:border-teal-500/20 outline-none"
                     placeholder="https://..."
                     value={formData.url}
-                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, url: e.target.value })
+                    }
                   />
                 </div>
               )}
@@ -396,7 +417,9 @@ const Resource = () => {
                     required
                     className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl mt-1.5 text-xs md:text-sm font-medium focus:bg-white focus:border-teal-500/20 outline-none"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
                   />
                 </div>
 
@@ -409,14 +432,16 @@ const Resource = () => {
                     className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl mt-1.5 text-xs md:text-sm font-medium focus:bg-white focus:border-teal-500/20 outline-none"
                     placeholder="e.g. ITN101"
                     value={formData.subject}
-                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, subject: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-slate-900 text-white font-black py-4 rounded-xl md:rounded-2xl hover:bg-teal-700 shadow-xl transition-all active:scale-[0.98] mt-2 uppercase text-[10px] md:text-xs tracking-widest"
+                className="w-full bg-teal-600 text-white font-black py-4 rounded-xl md:rounded-2xl hover:bg-teal-700 shadow-xl transition-all active:scale-[0.98] mt-2 uppercase text-[10px] md:text-xs tracking-widest"
               >
                 Save Resource
               </button>
@@ -441,7 +466,13 @@ const Resource = () => {
 
               <div className="grid grid-cols-2 gap-3 w-full mt-8">
                 <button
-                  onClick={() => setDeleteModal({ isOpen: false, id: null, storagePath: null })}
+                  onClick={() =>
+                    setDeleteModal({
+                      isOpen: false,
+                      id: null,
+                      storagePath: null,
+                    })
+                  }
                   className="py-3.5 px-4 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors text-[10px] uppercase tracking-widest"
                 >
                   Cancel

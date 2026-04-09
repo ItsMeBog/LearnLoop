@@ -496,7 +496,7 @@ const SubjectLayout = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-black text-white rounded-xl font-bold uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95 transition-transform"
+                  className="flex-1 py-3 bg-teal-600 text-white rounded-xl font-bold uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95 transition-transform"
                 >
                   {editingSubject ? "Save" : "Add"}
                 </button>

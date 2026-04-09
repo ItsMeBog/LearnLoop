@@ -32,7 +32,22 @@ const timeOptions = [
   "21:00",
 ];
 
-const durationOptions = ["30 mins", "1 hour", "1.5 hours", "2 hours", "3 hours"];
+const durationOptions = [
+  "30 mins",
+  "1 hour",
+  "1.5 hours",
+  "2 hours",
+  "3 hours",
+];
+
+const colorChoices = [
+  "bg-teal-500",
+  "bg-blue-500",
+  "bg-purple-500",
+  "bg-pink-500",
+  "bg-orange-500",
+  "bg-green-500",
+];
 
 const emptyForm = {
   day_name: "Monday",
@@ -40,6 +55,7 @@ const emptyForm = {
   subject: "",
   activity: "",
   duration: "1 hour",
+  color: "bg-teal-500",
 };
 
 const getMonday = (date) => {
@@ -147,7 +163,7 @@ const StudyPlanner = () => {
 
   const totalSessions = schedules.length;
   const uniqueSubjects = new Set(
-    schedules.map((item) => item.subject.trim()).filter(Boolean)
+    schedules.map((item) => item.subject.trim()).filter(Boolean),
   ).size;
 
   const totalHours = schedules.reduce((sum, item) => {
@@ -159,7 +175,9 @@ const StudyPlanner = () => {
     return sum + 1;
   }, 0);
 
-  const activeDays = weekDates.filter((day) => (groupedSchedules[day.day] || []).length > 0).length;
+  const activeDays = weekDates.filter(
+    (day) => (groupedSchedules[day.day] || []).length > 0,
+  ).length;
 
   const openModal = () => {
     setFormData(emptyForm);
@@ -186,6 +204,7 @@ const StudyPlanner = () => {
       subject: formData.subject,
       activity: formData.activity,
       duration: formData.duration,
+      color: formData.color,
     };
 
     const { data, error } = await supabase
@@ -205,7 +224,7 @@ const StudyPlanner = () => {
           return a.start_time.localeCompare(b.start_time);
         }
         return a.plan_date.localeCompare(b.plan_date);
-      })
+      }),
     );
 
     closeModal();
@@ -225,7 +244,9 @@ const StudyPlanner = () => {
       return;
     }
 
-    setSchedules((prev) => prev.filter((item) => item.id !== scheduleToDelete.id));
+    setSchedules((prev) =>
+      prev.filter((item) => item.id !== scheduleToDelete.id),
+    );
     setScheduleToDelete(null);
   };
 
@@ -292,7 +313,9 @@ const StudyPlanner = () => {
                   key={day.day}
                   className="bg-white border border-slate-200 rounded-2xl p-4 min-h-55"
                 >
-                  <h3 className="text-lg font-bold text-slate-900">{day.day}</h3>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {day.day}
+                  </h3>
                   <p className="text-slate-400 text-sm mb-4">{day.dateLabel}</p>
 
                   {daySchedules.length === 0 ? (
@@ -304,21 +327,27 @@ const StudyPlanner = () => {
                       {daySchedules.map((item) => (
                         <div
                           key={item.id}
-                          className="rounded-xl bg-slate-50 border border-slate-100 p-3"
+                          className={`rounded-xl border border-slate-100 p-3 text-white ${item.color || "bg-teal-500"}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <p className="text-xs font-bold text-slate-500 uppercase">
+                              <p className="text-xs font-bold text-white/80 uppercase">
                                 {item.start_time}
                               </p>
-                              <h4 className="font-bold text-slate-900">{item.subject}</h4>
-                              <p className="text-sm text-slate-600">{item.activity}</p>
-                              <p className="text-xs text-slate-400 mt-1">{item.duration}</p>
+                              <h4 className="font-bold text-white">
+                                {item.subject}
+                              </h4>
+                              <p className="text-sm text-white/90">
+                                {item.activity}
+                              </p>
+                              <p className="text-xs text-white/70 mt-1">
+                                {item.duration}
+                              </p>
                             </div>
 
                             <button
                               onClick={() => setScheduleToDelete(item)}
-                              className="text-slate-300 hover:text-red-500 text-sm"
+                              className="text-white/70 hover:text-white text-sm"
                             >
                               ✕
                             </button>
@@ -335,27 +364,37 @@ const StudyPlanner = () => {
           <div className="bg-white border border-slate-200 rounded-2xl md:rounded-4xl p-6">
             <div className="flex items-center gap-2 mb-6">
               <CalendarDays size={20} />
-              <h3 className="text-2xl font-bold text-slate-900">Weekly Summary</h3>
+              <h3 className="text-2xl font-bold text-slate-900">
+                Weekly Summary
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-blue-50 rounded-2xl p-6 text-center">
-                <p className="text-4xl font-black text-blue-600">{totalSessions}</p>
+                <p className="text-4xl font-black text-blue-600">
+                  {totalSessions}
+                </p>
                 <p className="text-slate-600 mt-2">Total Sessions</p>
               </div>
 
               <div className="bg-green-50 rounded-2xl p-6 text-center">
-                <p className="text-4xl font-black text-green-600">{uniqueSubjects}</p>
+                <p className="text-4xl font-black text-green-600">
+                  {uniqueSubjects}
+                </p>
                 <p className="text-slate-600 mt-2">Subjects</p>
               </div>
 
               <div className="bg-purple-50 rounded-2xl p-6 text-center">
-                <p className="text-4xl font-black text-purple-600">{totalHours.toFixed(1)}h</p>
+                <p className="text-4xl font-black text-purple-600">
+                  {totalHours.toFixed(1)}h
+                </p>
                 <p className="text-slate-600 mt-2">Study Hours</p>
               </div>
 
               <div className="bg-orange-50 rounded-2xl p-6 text-center">
-                <p className="text-4xl font-black text-orange-600">{activeDays}</p>
+                <p className="text-4xl font-black text-orange-600">
+                  {activeDays}
+                </p>
                 <p className="text-slate-600 mt-2">Active Days</p>
               </div>
             </div>
@@ -368,11 +407,18 @@ const StudyPlanner = () => {
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-start justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Add Study Block</h2>
-                <p className="text-slate-500 mt-1">Schedule a new study session</p>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  Add Study Block
+                </h2>
+                <p className="text-slate-500 mt-1">
+                  Schedule a new study session
+                </p>
               </div>
 
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={closeModal}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <X size={22} />
               </button>
             </div>
@@ -382,7 +428,9 @@ const StudyPlanner = () => {
                 <label className="block font-semibold mb-2">Day *</label>
                 <select
                   value={formData.day_name}
-                  onChange={(e) => setFormData({ ...formData, day_name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, day_name: e.target.value })
+                  }
                   className="w-full px-4 py-4 bg-slate-50 rounded-xl outline-none"
                 >
                   {dayNames.map((day) => (
@@ -395,7 +443,9 @@ const StudyPlanner = () => {
                 <label className="block font-semibold mb-2">Time *</label>
                 <select
                   value={formData.start_time}
-                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, start_time: e.target.value })
+                  }
                   className="w-full px-4 py-4 bg-slate-50 rounded-xl outline-none"
                 >
                   {timeOptions.map((time) => (
@@ -411,7 +461,9 @@ const StudyPlanner = () => {
                   type="text"
                   placeholder="e.g., Physics"
                   value={formData.subject}
-                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, subject: e.target.value })
+                  }
                   className="w-full px-4 py-4 bg-slate-50 rounded-xl outline-none"
                 />
               </div>
@@ -423,7 +475,9 @@ const StudyPlanner = () => {
                   type="text"
                   placeholder="e.g., Study Session, Lecture, Lab"
                   value={formData.activity}
-                  onChange={(e) => setFormData({ ...formData, activity: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, activity: e.target.value })
+                  }
                   className="w-full px-4 py-4 bg-slate-50 rounded-xl outline-none"
                 />
               </div>
@@ -432,13 +486,33 @@ const StudyPlanner = () => {
                 <label className="block font-semibold mb-2">Duration</label>
                 <select
                   value={formData.duration}
-                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, duration: e.target.value })
+                  }
                   className="w-full px-4 py-4 bg-slate-50 rounded-xl outline-none"
                 >
                   {durationOptions.map((duration) => (
                     <option key={duration}>{duration}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-2">Block Color</label>
+                <div className="flex flex-wrap gap-3">
+                  {colorChoices.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color })}
+                      className={`w-10 h-10 rounded-xl ${color} transition-all ${
+                        formData.color === color
+                          ? "ring-4 ring-offset-2 ring-slate-300"
+                          : "opacity-70 hover:opacity-100"
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -468,7 +542,9 @@ const StudyPlanner = () => {
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-50 text-red-500 flex items-center justify-center text-2xl">
               🗑️
             </div>
-            <h3 className="text-xl font-black text-slate-900">Delete Study Block?</h3>
+            <h3 className="text-xl font-black text-slate-900">
+              Delete Study Block?
+            </h3>
             <p className="text-slate-500 text-sm mt-2 mb-8">
               This schedule item will be removed permanently.
             </p>

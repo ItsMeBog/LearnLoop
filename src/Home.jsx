@@ -12,6 +12,7 @@ import {
   Sparkles,
   AlertCircle,
   CalendarDays,
+  Flame,
 } from "lucide-react";
 
 const Home = () => {
@@ -27,6 +28,10 @@ const Home = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [studyReminders, setStudyReminders] = useState([]);
   const [loadingReminders, setLoadingReminders] = useState(true);
+  const [taskStreak, setTaskStreak] = useState({
+    current_streak: 0,
+    longest_streak: 0,
+  });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -70,6 +75,29 @@ const Home = () => {
 
     loadStudyReminders();
   }, [user]);
+
+  useEffect(() => {
+    const loadTaskStreak = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("task_streaks")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to load task streak:", error.message);
+        return;
+      }
+
+      if (data) {
+        setTaskStreak(data);
+      }
+    };
+
+    loadTaskStreak();
+  }, [user, tasks]);
 
   const pendingTasks = tasks.filter((task) => task.status !== "Completed");
   const completedTasks = tasks.filter(
@@ -162,7 +190,7 @@ const Home = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500 rounded-full -mr-20 -mt-20 opacity-50"></div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         {[
           {
             label: "Active Tasks",
@@ -170,6 +198,14 @@ const Home = () => {
             icon: <CheckCircle />,
             color: "text-teal-600",
             bg: "bg-teal-50",
+            path: "/dashboard/tasks",
+          },
+          {
+            label: "Task Streak",
+            val: `${taskStreak.current_streak || 0} day${taskStreak.current_streak === 1 ? "" : "s"}`,
+            icon: <Flame />,
+            color: "text-orange-600",
+            bg: "bg-orange-50",
             path: "/dashboard/tasks",
           },
           {
@@ -210,16 +246,16 @@ const Home = () => {
             onClick={() => navigate(stat.path)}
             className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center cursor-pointer hover:border-teal-400 hover:shadow-lg hover:shadow-teal-500/10 transition-all active:scale-95 group"
           >
-            <div>
+            <div className="min-w-0">
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">
                 {stat.label}
               </p>
-              <p className="text-2xl font-black text-slate-800 tracking-tighter">
+              <p className="text-2xl font-black text-slate-800 tracking-tighter truncate">
                 {stat.val}
               </p>
             </div>
             <div
-              className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all`}
+              className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all shrink-0`}
             >
               {React.cloneElement(stat.icon, { size: 22 })}
             </div>

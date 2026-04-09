@@ -48,11 +48,18 @@ const Home = () => {
       setLoadingReminders(true);
 
       const today = new Date();
-      const startDate = today.toISOString().slice(0, 10);
+      const day = today.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
 
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 7);
-      const endDate = futureDate.toISOString().slice(0, 10);
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const startDate = monday.toISOString().slice(0, 10);
+      const endDate = sunday.toISOString().slice(0, 10);
 
       const { data, error } = await supabase
         .from("study_plans")

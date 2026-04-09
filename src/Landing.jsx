@@ -80,7 +80,7 @@ function Landing() {
         <img
           src={hams1}
           alt="LearnLoop Mascot"
-          className="w-[290px] md:w-[370px] lg:w-[410px] object-contain drop-shadow-xl"
+          className="w-72.5 md:w-92.5 lg:w-102.5 object-contain drop-shadow-xl"
         />
       </section>
 

@@ -42,6 +42,8 @@ const mapStatsRow = (row) => ({
   sessionCountInCycle: row.session_count_in_cycle,
 });
 
+const TIMER_STORAGE_KEY = "learnloop_focus_timer_state";
+
 const FocusMode = () => {
   const [userId, setUserId] = useState(null);
 
@@ -53,6 +55,7 @@ const FocusMode = () => {
   const [timeLeft, setTimeLeft] = useState(defaultSettings.focusDuration * 60);
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [endTime, setEndTime] = useState(null);
 
   const [stats, setStats] = useState({
     sessionsToday: 0,
@@ -62,6 +65,32 @@ const FocusMode = () => {
     lastDate: todayString(),
     sessionCountInCycle: 0,
   });
+
+  const getModeDurationInSeconds = useCallback(
+    (currentMode) => {
+      if (currentMode === "focus") return settings.focusDuration * 60;
+      if (currentMode === "break") return settings.shortBreak * 60;
+      return settings.longBreak * 60;
+    },
+    [settings],
+  );
+
+  const saveTimerState = useCallback((nextState) => {
+    localStorage.setItem(
+      TIMER_STORAGE_KEY,
+      JSON.stringify({
+        mode: nextState.mode,
+        timeLeft: nextState.timeLeft,
+        isActive: nextState.isActive,
+        endTime: nextState.endTime,
+        savedAt: Date.now(),
+      }),
+    );
+  }, []);
+
+  const clearTimerState = useCallback(() => {
+    localStorage.removeItem(TIMER_STORAGE_KEY);
+  }, []);
 
   const saveStatsToDb = useCallback(
     async (nextStats) => {
@@ -84,8 +113,77 @@ const FocusMode = () => {
         console.error("Failed to save focus stats:", error.message);
       }
     },
-    [userId]
+    [userId],
   );
+
+  const handleSessionCompletion = useCallback(async () => {
+    setIsActive(false);
+    setEndTime(null);
+
+    if (mode === "focus") {
+      const today = todayString();
+      const yesterday = yesterdayString();
+
+      let newStreak = 1;
+      if (stats.lastDate === today) {
+        newStreak = Math.max(stats.currentStreak, 1);
+      } else if (stats.lastDate === yesterday) {
+        newStreak = stats.currentStreak + 1;
+      }
+
+      const nextSessionCount = stats.sessionCountInCycle + 1;
+
+      const nextStats = {
+        sessionsToday: stats.lastDate === today ? stats.sessionsToday + 1 : 1,
+        focusMinutesToday:
+          stats.lastDate === today
+            ? stats.focusMinutesToday + settings.focusDuration
+            : settings.focusDuration,
+        completedTotal: stats.completedTotal + 1,
+        currentStreak: newStreak,
+        lastDate: today,
+        sessionCountInCycle: nextSessionCount,
+      };
+
+      setStats(nextStats);
+      await saveStatsToDb(nextStats);
+
+      if (nextSessionCount % settings.sessionsBeforeLongBreak === 0) {
+        const nextMode = "longBreak";
+        setMode(nextMode);
+        const nextTime = settings.longBreak * 60;
+        setTimeLeft(nextTime);
+        saveTimerState({
+          mode: nextMode,
+          timeLeft: nextTime,
+          isActive: false,
+          endTime: null,
+        });
+      } else {
+        const nextMode = "break";
+        setMode(nextMode);
+        const nextTime = settings.shortBreak * 60;
+        setTimeLeft(nextTime);
+        saveTimerState({
+          mode: nextMode,
+          timeLeft: nextTime,
+          isActive: false,
+          endTime: null,
+        });
+      }
+    } else {
+      const nextMode = "focus";
+      const nextTime = settings.focusDuration * 60;
+      setMode(nextMode);
+      setTimeLeft(nextTime);
+      saveTimerState({
+        mode: nextMode,
+        timeLeft: nextTime,
+        isActive: false,
+        endTime: null,
+      });
+    }
+  }, [mode, saveStatsToDb, saveTimerState, settings, stats]);
 
   useEffect(() => {
     let mounted = true;
@@ -127,12 +225,13 @@ const FocusMode = () => {
         settingsRow = insertedSettings;
       }
 
-      const normalizedSettings = settingsRow ? mapSettingsRow(settingsRow) : defaultSettings;
+      const normalizedSettings = settingsRow
+        ? mapSettingsRow(settingsRow)
+        : defaultSettings;
 
       if (mounted) {
         setSettings(normalizedSettings);
         setTempSettings(normalizedSettings);
-        setTimeLeft(normalizedSettings.focusDuration * 60);
       }
 
       let { data: statsRow } = await supabase
@@ -192,6 +291,49 @@ const FocusMode = () => {
       }
 
       if (mounted) {
+        const savedTimer = localStorage.getItem(TIMER_STORAGE_KEY);
+
+        if (savedTimer) {
+          try {
+            const parsed = JSON.parse(savedTimer);
+            const nextMode = parsed.mode || "focus";
+            const fallbackDuration =
+              nextMode === "focus"
+                ? normalizedSettings.focusDuration * 60
+                : nextMode === "break"
+                  ? normalizedSettings.shortBreak * 60
+                  : normalizedSettings.longBreak * 60;
+
+            if (parsed.isActive && parsed.endTime) {
+              const secondsLeft = Math.max(
+                0,
+                Math.ceil((parsed.endTime - Date.now()) / 1000),
+              );
+
+              setMode(nextMode);
+              setIsActive(secondsLeft > 0);
+              setEndTime(secondsLeft > 0 ? parsed.endTime : null);
+              setTimeLeft(secondsLeft > 0 ? secondsLeft : 0);
+
+              if (secondsLeft === 0) {
+                clearTimerState();
+              }
+            } else {
+              setMode(nextMode);
+              setIsActive(false);
+              setEndTime(null);
+              setTimeLeft(parsed.timeLeft ?? fallbackDuration);
+            }
+          } catch {
+            setMode("focus");
+            setTimeLeft(normalizedSettings.focusDuration * 60);
+            clearTimerState();
+          }
+        } else {
+          setMode("focus");
+          setTimeLeft(normalizedSettings.focusDuration * 60);
+        }
+
         setLoading(false);
       }
     };
@@ -201,82 +343,62 @@ const FocusMode = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [clearTimerState]);
 
   const resetTimer = useCallback(() => {
+    const resetValue = getModeDurationInSeconds(mode);
     setIsActive(false);
-
-    if (mode === "focus") {
-      setTimeLeft(settings.focusDuration * 60);
-    } else if (mode === "break") {
-      setTimeLeft(settings.shortBreak * 60);
-    } else {
-      setTimeLeft(settings.longBreak * 60);
-    }
-  }, [mode, settings]);
+    setEndTime(null);
+    setTimeLeft(resetValue);
+    saveTimerState({
+      mode,
+      timeLeft: resetValue,
+      isActive: false,
+      endTime: null,
+    });
+  }, [getModeDurationInSeconds, mode, saveTimerState]);
 
   useEffect(() => {
-    resetTimer();
-  }, [mode, settings, resetTimer]);
+    if (loading) return;
 
-  const handleSessionCompletion = useCallback(async () => {
-    setIsActive(false);
-
-    if (mode === "focus") {
-      const today = todayString();
-      const yesterday = yesterdayString();
-
-      let newStreak = 1;
-      if (stats.lastDate === today) {
-        newStreak = Math.max(stats.currentStreak, 1);
-      } else if (stats.lastDate === yesterday) {
-        newStreak = stats.currentStreak + 1;
-      }
-
-      const nextSessionCount = stats.sessionCountInCycle + 1;
-
-      const nextStats = {
-        sessionsToday: stats.lastDate === today ? stats.sessionsToday + 1 : 1,
-        focusMinutesToday:
-          stats.lastDate === today
-            ? stats.focusMinutesToday + settings.focusDuration
-            : settings.focusDuration,
-        completedTotal: stats.completedTotal + 1,
-        currentStreak: newStreak,
-        lastDate: today,
-        sessionCountInCycle: nextSessionCount,
-      };
-
-      setStats(nextStats);
-      await saveStatsToDb(nextStats);
-
-      if (nextSessionCount % settings.sessionsBeforeLongBreak === 0) {
-        setMode("longBreak");
-      } else {
-        setMode("break");
-      }
-    } else {
-      setMode("focus");
+    if (!isActive) {
+      const duration = getModeDurationInSeconds(mode);
+      setTimeLeft((current) => {
+        if (endTime === null) return duration;
+        return current;
+      });
     }
-  }, [mode, saveStatsToDb, settings, stats]);
+  }, [mode, settings, isActive, loading, getModeDurationInSeconds, endTime]);
 
   useEffect(() => {
-    let interval = null;
+    if (!isActive || !endTime) return;
 
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((current) => {
-          if (current === 1) {
-            handleSessionCompletion();
-            return 0;
-          }
-          return current - 1;
-        });
-      }, 1000);
-    }
+    const tick = async () => {
+      const secondsLeft = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      setTimeLeft(secondsLeft);
+
+      if (secondsLeft <= 0) {
+        clearTimerState();
+        await handleSessionCompletion();
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 250);
 
     return () => clearInterval(interval);
-  }, [handleSessionCompletion, isActive, timeLeft]);
+  }, [isActive, endTime, handleSessionCompletion, clearTimerState]);
+
+  useEffect(() => {
+    if (!loading) {
+      saveTimerState({
+        mode,
+        timeLeft,
+        isActive,
+        endTime,
+      });
+    }
+  }, [mode, timeLeft, isActive, endTime, loading, saveTimerState]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -302,13 +424,68 @@ const FocusMode = () => {
       if (error) throw error;
 
       setSettings(tempSettings);
+
+      if (!isActive) {
+        const nextDuration =
+          mode === "focus"
+            ? tempSettings.focusDuration * 60
+            : mode === "break"
+              ? tempSettings.shortBreak * 60
+              : tempSettings.longBreak * 60;
+
+        setTimeLeft(nextDuration);
+        saveTimerState({
+          mode,
+          timeLeft: nextDuration,
+          isActive: false,
+          endTime: null,
+        });
+      }
+
       setIsSettingsOpen(false);
     } catch (error) {
       alert(error.message || "Failed to save settings.");
     }
   };
 
-  const toggleTimer = () => setIsActive((prev) => !prev);
+  const toggleTimer = () => {
+    if (isActive) {
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      setIsActive(false);
+      setEndTime(null);
+      setTimeLeft(remaining);
+      saveTimerState({
+        mode,
+        timeLeft: remaining,
+        isActive: false,
+        endTime: null,
+      });
+    } else {
+      const newEndTime = Date.now() + timeLeft * 1000;
+      setIsActive(true);
+      setEndTime(newEndTime);
+      saveTimerState({
+        mode,
+        timeLeft,
+        isActive: true,
+        endTime: newEndTime,
+      });
+    }
+  };
+
+  const changeModeManually = (nextMode) => {
+    const nextDuration = getModeDurationInSeconds(nextMode);
+    setMode(nextMode);
+    setIsActive(false);
+    setEndTime(null);
+    setTimeLeft(nextDuration);
+    saveTimerState({
+      mode: nextMode,
+      timeLeft: nextDuration,
+      isActive: false,
+      endTime: null,
+    });
+  };
 
   const isFocusMode = mode === "focus";
   const headerBgColor = isFocusMode ? "bg-blue-600" : "bg-emerald-600";
@@ -316,15 +493,13 @@ const FocusMode = () => {
 
   const cycleProgress = useMemo(
     () => stats.sessionCountInCycle % settings.sessionsBeforeLongBreak,
-    [settings.sessionsBeforeLongBreak, stats.sessionCountInCycle]
+    [settings.sessionsBeforeLongBreak, stats.sessionCountInCycle],
   );
 
   const nextFocusIn =
     cycleProgress === 0
       ? settings.sessionsBeforeLongBreak
       : settings.sessionsBeforeLongBreak - cycleProgress;
-
-  
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen bg-gray-50/50 font-sans text-left">
@@ -383,7 +558,9 @@ const FocusMode = () => {
                 {card.value}
               </p>
             </div>
-            <div className={`p-2.5 md:p-4 rounded-xl md:rounded-3xl ${card.color} text-white shadow-lg`}>
+            <div
+              className={`p-2.5 md:p-4 rounded-xl md:rounded-3xl ${card.color} text-white shadow-lg`}
+            >
               {card.icon}
             </div>
           </div>
@@ -391,11 +568,17 @@ const FocusMode = () => {
       </div>
 
       <div className="bg-white rounded-3xl md:rounded-[3rem] shadow-xl overflow-hidden border border-gray-100 max-w-xl mx-auto w-full">
-        <div className={`${headerBgColor} text-white p-5 md:p-8 text-center transition-all duration-300`}>
+        <div
+          className={`${headerBgColor} text-white p-5 md:p-8 text-center transition-all duration-300`}
+        >
           <div className="flex items-center justify-center gap-2 mb-1 md:mb-2">
             {isFocusMode ? <BrainCircuit size={18} /> : <Coffee size={18} />}
             <h2 className="text-lg md:text-2xl font-black tracking-tight uppercase">
-              {isFocusMode ? "Focus" : mode === "longBreak" ? "Long Break" : "Break"}
+              {isFocusMode
+                ? "Focus"
+                : mode === "longBreak"
+                  ? "Long Break"
+                  : "Break"}
             </h2>
           </div>
           <p className="text-[9px] md:text-sm font-bold opacity-80 uppercase tracking-widest">
@@ -406,17 +589,21 @@ const FocusMode = () => {
         <div className="p-6 md:p-10 flex flex-col items-center gap-6 md:gap-8">
           <div className="flex bg-gray-50 p-1.5 rounded-xl md:rounded-2xl w-full border border-gray-100">
             <button
-              onClick={() => setMode("focus")}
+              onClick={() => changeModeManually("focus")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 md:py-3 rounded-lg md:rounded-xl transition-all font-black text-[10px] md:text-sm uppercase tracking-wider ${
-                isFocusMode ? "bg-gray-950 text-white shadow-lg" : "text-gray-400"
+                isFocusMode
+                  ? "bg-gray-950 text-white shadow-lg"
+                  : "text-gray-400"
               }`}
             >
               <BrainCircuit size={14} /> <span>Focus</span>
             </button>
             <button
-              onClick={() => setMode("break")}
+              onClick={() => changeModeManually("break")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 md:py-3 rounded-lg md:rounded-xl transition-all font-black text-[10px] md:text-sm uppercase tracking-wider ${
-                !isFocusMode ? "bg-gray-950 text-white shadow-lg" : "text-gray-400"
+                !isFocusMode
+                  ? "bg-gray-950 text-white shadow-lg"
+                  : "text-gray-400"
               }`}
             >
               <Coffee size={14} /> <span>Break</span>
@@ -438,7 +625,11 @@ const FocusMode = () => {
               onClick={toggleTimer}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gray-950 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-2xl hover:bg-gray-800 transition-all active:scale-95 shadow-xl font-black text-[11px] md:text-sm uppercase tracking-widest"
             >
-              {isActive ? <Pause size={16} /> : <Play size={16} className="rotate-12" />}
+              {isActive ? (
+                <Pause size={16} />
+              ) : (
+                <Play size={16} className="rotate-12" />
+              )}
               <span>{isActive ? "Pause" : "Start"}</span>
             </button>
 
@@ -465,16 +656,18 @@ const FocusMode = () => {
             </div>
 
             <div className="flex gap-1 md:gap-1.5">
-              {Array.from({ length: settings.sessionsBeforeLongBreak }).map((_, index) => (
-                <div
-                  key={index}
-                  className={`w-2.5 h-2.5 md:w-4 md:h-4 rounded-full ${
-                    index < cycleProgress
-                      ? "bg-blue-600 shadow-sm shadow-blue-200"
-                      : "bg-gray-100 border-2 border-gray-200"
-                  }`}
-                />
-              ))}
+              {Array.from({ length: settings.sessionsBeforeLongBreak }).map(
+                (_, index) => (
+                  <div
+                    key={index}
+                    className={`w-2.5 h-2.5 md:w-4 md:h-4 rounded-full ${
+                      index < cycleProgress
+                        ? "bg-blue-600 shadow-sm shadow-blue-200"
+                        : "bg-gray-100 border-2 border-gray-200"
+                    }`}
+                  />
+                ),
+              )}
             </div>
           </div>
         </div>

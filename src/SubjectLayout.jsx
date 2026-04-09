@@ -18,6 +18,7 @@ const SubjectLayout = () => {
   const [subjectToDelete, setSubjectToDelete] = useState(null);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [formData, setFormData] = useState(emptySubject);
+  const [isSaving, setIsSaving] = useState(false);
 
   const colorChoices = [
     "bg-blue-500",
@@ -33,6 +34,7 @@ const SubjectLayout = () => {
       name: file.name,
       type: file.name.split(".").pop() || "file",
       size: file.size,
+      rawFile: file,
     }));
 
     setFormData((prev) => ({
@@ -65,14 +67,75 @@ const SubjectLayout = () => {
     setIsModalOpen(false);
     setEditingSubject(null);
     setFormData(emptySubject);
+    setIsSaving(false);
+  };
+
+  const sanitizeFileName = (name) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+  const uploadSubjectFiles = async (filesToUpload) => {
+    if (!user) return [];
+
+    const uploaded = [];
+
+    for (const file of filesToUpload) {
+      if (!file.rawFile) {
+        uploaded.push(file);
+        continue;
+      }
+
+      const safeName = sanitizeFileName(file.name);
+      const filePath = `${user.id}/subjects/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}-${safeName}`;
+
+      const { error } = await supabase.storage
+        .from("study-resources")
+        .upload(filePath, file.rawFile, {
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      uploaded.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        storage_path: filePath,
+      });
+    }
+
+    return uploaded;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || isSaving) return;
+
+    setIsSaving(true);
 
     try {
+      const uploadedFiles = await uploadSubjectFiles(formData.files);
+
       if (editingSubject) {
+        const oldFiles = Array.isArray(editingSubject.files)
+          ? editingSubject.files
+          : [];
+        const oldPaths = oldFiles
+          .filter((file) => file.storage_path)
+          .map((file) => file.storage_path);
+
+        const newPaths = uploadedFiles
+          .filter((file) => file.storage_path)
+          .map((file) => file.storage_path);
+
+        const removedPaths = oldPaths.filter(
+          (path) => !newPaths.includes(path),
+        );
+
+        for (const path of removedPaths) {
+          await supabase.storage.from("study-resources").remove([path]);
+        }
+
         const { data, error } = await supabase
           .from("subjects")
           .update({
@@ -81,7 +144,7 @@ const SubjectLayout = () => {
             schedule: formData.schedule,
             description: formData.description,
             color: formData.color,
-            files: formData.files,
+            files: uploadedFiles,
           })
           .eq("id", editingSubject.id)
           .eq("user_id", user.id)
@@ -95,6 +158,10 @@ const SubjectLayout = () => {
             subject.id === editingSubject.id ? data : subject,
           ),
         );
+
+        if (selectedSubject?.id === editingSubject.id) {
+          setSelectedSubject(data);
+        }
       } else {
         const { data, error } = await supabase
           .from("subjects")
@@ -105,7 +172,7 @@ const SubjectLayout = () => {
             schedule: formData.schedule,
             description: formData.description,
             color: formData.color,
-            files: formData.files,
+            files: uploadedFiles,
           })
           .select()
           .single();
@@ -118,6 +185,7 @@ const SubjectLayout = () => {
       closeModal();
     } catch (error) {
       alert(error.message || "Failed to save subject.");
+      setIsSaving(false);
     }
   };
 
@@ -143,10 +211,47 @@ const SubjectLayout = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const openSubjectFile = async (file) => {
+    try {
+      if (!file.storage_path) {
+        alert(
+          "This file was saved before real uploads were enabled, so it cannot be opened yet.",
+        );
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from("study-resources")
+        .createSignedUrl(file.storage_path, 60);
+
+      if (error) throw error;
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      } else {
+        alert("Unable to open file.");
+      }
+    } catch (error) {
+      alert(error.message || "Failed to open file.");
+    }
+  };
+
   const handleDelete = async () => {
     if (!user || !subjectToDelete) return;
 
     try {
+      const subject = subjects.find((item) => item.id === subjectToDelete);
+
+      if (subject?.files?.length) {
+        const paths = subject.files
+          .filter((file) => file.storage_path)
+          .map((file) => file.storage_path);
+
+        if (paths.length > 0) {
+          await supabase.storage.from("study-resources").remove(paths);
+        }
+      }
+
       const { error } = await supabase
         .from("subjects")
         .delete()
@@ -156,6 +261,11 @@ const SubjectLayout = () => {
       if (error) throw error;
 
       setSubjects(subjects.filter((subject) => subject.id !== subjectToDelete));
+
+      if (selectedSubject?.id === subjectToDelete) {
+        setSelectedSubject(null);
+      }
+
       setSubjectToDelete(null);
     } catch (error) {
       alert(error.message || "Failed to delete subject.");
@@ -355,13 +465,23 @@ const SubjectLayout = () => {
                           </p>
                         </div>
 
-                        <span
-                          className={`px-3 py-1 text-[10px] font-black rounded-full border uppercase ${getFileColor(
-                            file.type,
-                          )}`}
-                        >
-                          {file.type || "file"}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`px-3 py-1 text-[10px] font-black rounded-full border uppercase ${getFileColor(
+                              file.type,
+                            )}`}
+                          >
+                            {file.type || "file"}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => openSubjectFile(file)}
+                            className="px-3 py-1.5 bg-teal-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-teal-700"
+                          >
+                            Open
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -496,9 +616,10 @@ const SubjectLayout = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-teal-600 text-white rounded-xl font-bold uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95 transition-transform"
+                  disabled={isSaving}
+                  className="flex-1 py-3 bg-teal-600 text-white rounded-xl font-bold uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95 transition-transform disabled:opacity-50"
                 >
-                  {editingSubject ? "Save" : "Add"}
+                  {isSaving ? "Saving..." : editingSubject ? "Save" : "Add"}
                 </button>
               </div>
             </form>

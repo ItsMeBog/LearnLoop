@@ -16,6 +16,7 @@ const SubjectLayout = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
   const [subjectToDelete, setSubjectToDelete] = useState(null);
+  const [selectedSubject, setSelectedSubject] = useState(null);
   const [formData, setFormData] = useState(emptySubject);
 
   const colorChoices = [
@@ -31,6 +32,7 @@ const SubjectLayout = () => {
     const uploadedFiles = Array.from(e.target.files || []).map((file) => ({
       name: file.name,
       type: file.name.split(".").pop() || "file",
+      size: file.size,
     }));
 
     setFormData((prev) => ({
@@ -88,7 +90,11 @@ const SubjectLayout = () => {
 
         if (error) throw error;
 
-        setSubjects(subjects.map((subject) => (subject.id === editingSubject.id ? data : subject)));
+        setSubjects(
+          subjects.map((subject) =>
+            subject.id === editingSubject.id ? data : subject,
+          ),
+        );
       } else {
         const { data, error } = await supabase
           .from("subjects")
@@ -130,6 +136,13 @@ const SubjectLayout = () => {
     }
   };
 
+  const formatFileSize = (bytes) => {
+    if (!bytes) return "Unknown size";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const handleDelete = async () => {
     if (!user || !subjectToDelete) return;
 
@@ -166,7 +179,9 @@ const SubjectLayout = () => {
           className="bg-teal-600 text-white px-3 py-2 md:px-6 md:py-2.5 rounded-lg md:rounded-xl font-bold hover:bg-teal-800 transition-all active:scale-95 flex items-center gap-1 md:gap-2 shadow-sm shrink-0"
         >
           <span className="text-base md:text-xl">＋</span>
-          <span className="text-[10px] md:text-sm uppercase tracking-wider">Add Subject</span>
+          <span className="text-[10px] md:text-sm uppercase tracking-wider">
+            Add Subject
+          </span>
         </button>
       </div>
 
@@ -229,7 +244,7 @@ const SubjectLayout = () => {
                       <span
                         key={index}
                         className={`px-2 py-0.5 text-[8px] md:text-[9px] font-black rounded border uppercase tracking-tighter truncate max-w-32 ${getFileColor(
-                          file.type
+                          file.type,
                         )}`}
                       >
                         {file.name}
@@ -243,7 +258,10 @@ const SubjectLayout = () => {
                   </div>
                 </div>
 
-                <button className="w-full mt-auto py-2 md:py-2.5 border border-gray-100 rounded-lg md:rounded-xl text-[9px] md:text-xs font-black text-gray-500 hover:bg-gray-50 hover:text-teal-600 transition-all uppercase tracking-wide">
+                <button
+                  onClick={() => setSelectedSubject(sub)}
+                  className="w-full mt-auto py-2 md:py-2.5 border border-gray-100 rounded-lg md:rounded-xl text-[9px] md:text-xs font-black text-gray-500 hover:bg-gray-50 hover:text-teal-600 transition-all uppercase tracking-wide"
+                >
                   View Details
                 </button>
               </div>
@@ -255,7 +273,106 @@ const SubjectLayout = () => {
           <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center text-2xl md:text-3xl mb-4">
             📚
           </div>
-          <p className="text-gray-400 font-bold text-sm md:text-base">Empty Subject Library</p>
+          <p className="text-gray-400 font-bold text-sm md:text-base">
+            Empty Subject Library
+          </p>
+        </div>
+      )}
+
+      {selectedSubject && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-120 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div
+              className={`h-2 w-full ${selectedSubject.color || "bg-blue-500"}`}
+            ></div>
+
+            <div className="p-5 md:p-8 overflow-y-auto">
+              <div className="flex justify-between items-start gap-4 mb-6">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-900">
+                    {selectedSubject.name}
+                  </h2>
+                  <p className="text-sm md:text-base text-gray-500 font-semibold mt-1">
+                    {selectedSubject.professor || "No professor"}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setSelectedSubject(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Schedule
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700">
+                    {selectedSubject.schedule || "No schedule set"}
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Materials Count
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700">
+                    {selectedSubject.files?.length || 0} file(s)
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Description
+                </p>
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-sm text-slate-700 leading-relaxed">
+                  {selectedSubject.description || "No description provided."}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                  Uploaded Materials
+                </p>
+
+                {selectedSubject.files && selectedSubject.files.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedSubject.files.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 bg-white"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-slate-400 uppercase font-bold mt-1">
+                            {file.type || "file"} • {formatFileSize(file.size)}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`px-3 py-1 text-[10px] font-black rounded-full border uppercase ${getFileColor(
+                            file.type,
+                          )}`}
+                        >
+                          {file.type || "file"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 text-center text-sm text-slate-400 italic">
+                    No uploaded materials yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -272,7 +389,9 @@ const SubjectLayout = () => {
                 className="w-full px-4 py-3 md:px-5 md:py-3.5 bg-gray-50 rounded-xl outline-none text-sm"
                 placeholder="Subject Name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
               />
 
               <div>
@@ -301,13 +420,17 @@ const SubjectLayout = () => {
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none text-sm"
                   placeholder="Professor"
                   value={formData.professor}
-                  onChange={(e) => setFormData({ ...formData, professor: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, professor: e.target.value })
+                  }
                 />
                 <input
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none text-sm"
                   placeholder="Schedule"
                   value={formData.schedule}
-                  onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, schedule: e.target.value })
+                  }
                 />
               </div>
 
@@ -336,7 +459,7 @@ const SubjectLayout = () => {
                       <div
                         key={index}
                         className={`flex justify-between items-center p-1.5 md:p-2 rounded-lg border text-[8px] md:text-[10px] font-bold ${getFileColor(
-                          file.type
+                          file.type,
                         )}`}
                       >
                         <span className="truncate pr-2">{file.name}</span>
@@ -358,7 +481,9 @@ const SubjectLayout = () => {
                 className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none resize-none text-sm"
                 placeholder="Description..."
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
               />
 
               <div className="flex gap-2 md:gap-3 pt-2">

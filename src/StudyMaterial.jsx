@@ -66,17 +66,16 @@ const StudyMaterial = () => {
         throw new Error("No readable text found in PDF.");
       }
 
-      const response = await fetch(
-        "/.netlify/functions/generate-study-material",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ text: fullText }),
-        },
-      );
+      const API_BASE =
+        import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
+      const response = await fetch(`${API_BASE}/api/generate-study-material`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: fullText }),
+      });
       let result;
       try {
         result = await response.json();

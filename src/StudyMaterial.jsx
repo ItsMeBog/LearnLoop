@@ -76,6 +76,7 @@ const StudyMaterial = () => {
         },
         body: JSON.stringify({ text: fullText }),
       });
+
       let result;
       try {
         result = await response.json();

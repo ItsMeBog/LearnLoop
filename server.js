@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -10,8 +10,15 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+if (!process.env.GEMINI_API_KEY) {
+  console.error("Missing GEMINI_API_KEY in .env");
+  process.exit(1);
+}
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+app.get("/", (_req, res) => {
+  res.send("AI study material server is running.");
 });
 
 app.post("/api/generate-study-material", async (req, res) => {
@@ -56,12 +63,12 @@ Study material:
 ${text}
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
+   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const rawText = result.response.text() || "";
 
-    const rawText = response.text || "";
+    console.log("Raw Gemini response:", rawText);
+
     const cleanedText = rawText.replace(/```json|```/g, "").trim();
 
     let parsed;
@@ -69,36 +76,28 @@ ${text}
       parsed = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
-      console.error("Model raw response:", rawText);
-
       return res.status(500).json({
         error: "AI returned invalid JSON.",
+        raw: rawText,
       });
     }
 
-    if (
-      !parsed ||
-      !Array.isArray(parsed.flashcards) ||
-      !Array.isArray(parsed.quiz)
-    ) {
+    if (!parsed || !Array.isArray(parsed.flashcards) || !Array.isArray(parsed.quiz)) {
       return res.status(500).json({
         error: "AI response format is invalid.",
+        raw: parsed,
       });
     }
 
-    res.json(parsed);
+    return res.json(parsed);
   } catch (error) {
     console.error("Gemini server error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to generate study material.",
-      details: error.message,
+      details: error?.message || "Unknown server error",
     });
   }
-});
-
-app.get("/", (_req, res) => {
-  res.send("AI study material server is running.");
 });
 
 const PORT = process.env.PORT || 3001;

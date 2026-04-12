@@ -247,7 +247,7 @@ const Home = () => {
             onClick={() => navigate(stat.path)}
             className="group relative bg-white/70 backdrop-blur-xl border border-slate-200 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-sm hover:shadow-xl hover:shadow-teal-500/10 hover:border-teal-400 transition-all duration-300 cursor-pointer active:scale-[0.97] overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-teal-50/0 to-teal-100/0 group-hover:to-teal-100/40 transition-all duration-500 rounded-2xl" />
+            <div className="absolute inset-0 bg-linear-to-br from-transparent via-teal-50/0 to-teal-100/0 group-hover:to-teal-100/40 transition-all duration-500 rounded-2xl" />
 
             <div className="relative z-10 flex-1 min-w-0">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">

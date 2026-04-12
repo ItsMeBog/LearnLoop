@@ -1,32 +1,35 @@
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function handler(event) {
   try {
-    // Only allow POST
     if (event.httpMethod !== "POST") {
       return {
         statusCode: 405,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ error: "Method not allowed" }),
+      };
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return {
+        statusCode: 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "Missing GEMINI_API_KEY in Netlify environment variables.",
+        }),
       };
     }
 
     const { text } = JSON.parse(event.body || "{}");
 
-    // Validate input
     if (!text || !text.trim()) {
       return {
         statusCode: 400,
-        body: JSON.stringify({
-          error: "No PDF text provided.",
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "No PDF text provided." }),
       };
     }
 
-    // Prompt for Gemini
     const prompt = `
 You are a study assistant.
 
@@ -59,53 +62,43 @@ Study material:
 ${text}
 `;
 
-    // Call Gemini
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const rawText = response.text || "";
-
-    // Clean markdown if Gemini wraps JSON
+    const result = await model.generateContent(prompt);
+    const rawText = result.response.text() || "";
     const cleanedText = rawText.replace(/```json|```/g, "").trim();
 
     let parsed;
-
     try {
       parsed = JSON.parse(cleanedText);
-    } catch (err) {
-      console.error("JSON parse error:", err);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
       console.error("Raw Gemini response:", rawText);
 
       return {
         statusCode: 500,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           error: "AI returned invalid JSON.",
+          raw: rawText,
         }),
       };
     }
 
-    // Validate structure
-    if (
-      !parsed ||
-      !Array.isArray(parsed.flashcards) ||
-      !Array.isArray(parsed.quiz)
-    ) {
+    if (!parsed || !Array.isArray(parsed.flashcards) || !Array.isArray(parsed.quiz)) {
       return {
         statusCode: 500,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           error: "AI response format is invalid.",
         }),
       };
     }
 
-    // Success
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parsed),
     };
   } catch (error) {
@@ -113,9 +106,10 @@ ${text}
 
     return {
       statusCode: 500,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         error: "Failed to generate study material.",
-        details: error.message,
+        details: error?.message || "Unknown server error",
       }),
     };
   }

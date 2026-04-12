@@ -197,7 +197,7 @@ const Home = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500 rounded-full -mr-20 -mt-20 opacity-50"></div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {[
           {
             label: "Active Tasks",
@@ -209,7 +209,9 @@ const Home = () => {
           },
           {
             label: "Task Streak",
-            val: `${taskStreak.current_streak || 0} day${taskStreak.current_streak === 1 ? "" : "s"}`,
+            val: `${taskStreak.current_streak || 0} day${
+              taskStreak.current_streak === 1 ? "" : "s"
+            }`,
             icon: <Flame />,
             color: "text-orange-600",
             bg: "bg-orange-50",
@@ -219,52 +221,48 @@ const Home = () => {
             label: "Total Subjects",
             val: subjects.length,
             icon: <BookOpen />,
-            color: "text-teal-600",
-            bg: "bg-teal-50",
+            color: "text-sky-600",
+            bg: "bg-sky-50",
             path: "/dashboard/subjects",
           },
           {
             label: "Exam Count",
             val: upcomingExams.length,
             icon: <Timer />,
-            color: "text-teal-600",
-            bg: "bg-teal-50",
+            color: "text-violet-600",
+            bg: "bg-violet-50",
             path: "/dashboard/exams",
           },
           {
             label: "Completion",
             val: `${progress}%`,
             icon: <TrendingUp />,
-            color: "text-teal-600",
-            bg: "bg-teal-50",
+            color: "text-emerald-600",
+            bg: "bg-emerald-50",
             path: "/dashboard/home",
-          },
-          {
-            label: "Study Planner",
-            val: "Open",
-            icon: <CalendarDays />,
-            color: "text-teal-600",
-            bg: "bg-teal-50",
-            path: "/dashboard/planner",
           },
         ].map((stat, index) => (
           <div
             key={index}
             onClick={() => navigate(stat.path)}
-            className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center cursor-pointer hover:border-teal-400 hover:shadow-lg hover:shadow-teal-500/10 transition-all active:scale-95 group"
+            className="group relative bg-white/70 backdrop-blur-xl border border-slate-200 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-sm hover:shadow-xl hover:shadow-teal-500/10 hover:border-teal-400 transition-all duration-300 cursor-pointer active:scale-[0.97] overflow-hidden"
           >
-            <div className="min-w-0">
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-teal-50/0 to-teal-100/0 group-hover:to-teal-100/40 transition-all duration-500 rounded-2xl" />
+
+            <div className="relative z-10 flex-1 min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
                 {stat.label}
               </p>
-              <p className="text-2xl font-black text-slate-800 tracking-tighter truncate">
+
+              <p className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight truncate">
                 {stat.val}
               </p>
             </div>
+
             <div
-              className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all shrink-0`}
+              className={`relative z-10 w-11 h-11 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center transition-all duration-300 group-hover:bg-teal-600 group-hover:text-white group-hover:scale-110 shrink-0`}
             >
-              {React.cloneElement(stat.icon, { size: 22 })}
+              {React.cloneElement(stat.icon, { size: 20 })}
             </div>
           </div>
         ))}

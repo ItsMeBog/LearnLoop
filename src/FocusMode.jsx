@@ -1,3 +1,8 @@
+import {
+  createNotification,
+  ensureNotificationSettings,
+  sendBrowserNotification,
+} from "./lib/notifications";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit,
@@ -120,6 +125,40 @@ const FocusMode = () => {
     setIsActive(false);
     setEndTime(null);
 
+    if (userId) {
+      try {
+        const notificationSettings = await ensureNotificationSettings(userId);
+
+        const title =
+          mode === "focus" ? "Focus Session Complete" : "Break Complete";
+
+        const message =
+          mode === "focus"
+            ? "Great work. Your focus session is complete."
+            : "Your break is over. Time to get back to studying.";
+
+        if (notificationSettings.enable_focus_reminders) {
+          await createNotification({
+            userId,
+            title,
+            message,
+            type: "focus",
+            relatedType: "focus",
+            relatedId: null,
+          });
+
+          if (notificationSettings.enable_browser_notifications) {
+            sendBrowserNotification({
+              title,
+              body: message,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Focus notification error:", error.message);
+      }
+    }
+
     if (mode === "focus") {
       const today = todayString();
       const yesterday = yesterdayString();
@@ -183,7 +222,7 @@ const FocusMode = () => {
         endTime: null,
       });
     }
-  }, [mode, saveStatsToDb, saveTimerState, settings, stats]);
+  }, [mode, saveStatsToDb, saveTimerState, settings, stats, userId]);
 
   useEffect(() => {
     let mounted = true;

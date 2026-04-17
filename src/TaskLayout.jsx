@@ -11,17 +11,102 @@ const TaskLayout = () => {
   const [editingTask, setEditingTask] = useState(null);
   const [taskToDelete, setTaskToDelete] = useState(null);
 
+  const sanitizeFileName = (name) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+  const uploadTaskFiles = async (filesToUpload) => {
+    if (!user) return [];
+
+    const uploaded = [];
+
+    for (const file of filesToUpload) {
+      if (!file.rawFile) {
+        uploaded.push(file);
+        continue;
+      }
+
+      const safeName = sanitizeFileName(file.name);
+      const filePath = `${user.id}/tasks/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}-${safeName}`;
+
+      const { error } = await supabase.storage
+        .from("study-resources")
+        .upload(filePath, file.rawFile, {
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      uploaded.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        storage_path: filePath,
+      });
+    }
+
+    return uploaded;
+  };
+
+  const handleOpenMaterial = async (file) => {
+    try {
+      if (!file.storage_path) {
+        alert(
+          "This file was saved before real uploads were enabled, so it cannot be opened yet.",
+        );
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from("study-resources")
+        .createSignedUrl(file.storage_path, 60);
+
+      if (error) throw error;
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      } else {
+        alert("Unable to open file.");
+      }
+    } catch (error) {
+      alert(error.message || "Failed to open file.");
+    }
+  };
+
   const handleAddTask = async (newTask) => {
     if (!user) return;
 
     try {
+      const uploadedMaterials = await uploadTaskFiles(newTask.materials || []);
+
       if (editingTask) {
+        const oldMaterials = Array.isArray(editingTask.materials)
+          ? editingTask.materials
+          : [];
+
+        const oldPaths = oldMaterials
+          .filter((file) => file.storage_path)
+          .map((file) => file.storage_path);
+
+        const newPaths = uploadedMaterials
+          .filter((file) => file.storage_path)
+          .map((file) => file.storage_path);
+
+        const removedPaths = oldPaths.filter(
+          (path) => !newPaths.includes(path),
+        );
+
+        if (removedPaths.length > 0) {
+          await supabase.storage.from("study-resources").remove(removedPaths);
+        }
+
         const updatePayload = {
           title: newTask.title,
           subject: newTask.subject,
           deadline: newTask.deadline,
           priority: newTask.priority,
           status: newTask.status,
+          materials: uploadedMaterials,
         };
 
         if (newTask.status === "Completed") {
@@ -54,6 +139,7 @@ const TaskLayout = () => {
           deadline: newTask.deadline,
           priority: newTask.priority,
           status: newTask.status,
+          materials: uploadedMaterials,
           completed_at:
             newTask.status === "Completed" ? new Date().toISOString() : null,
         };
@@ -80,6 +166,18 @@ const TaskLayout = () => {
     if (!user || !taskToDelete) return;
 
     try {
+      const task = tasks.find((item) => item.id === taskToDelete);
+
+      if (task?.materials?.length) {
+        const paths = task.materials
+          .filter((file) => file.storage_path)
+          .map((file) => file.storage_path);
+
+        if (paths.length > 0) {
+          await supabase.storage.from("study-resources").remove(paths);
+        }
+      }
+
       const { error } = await supabase
         .from("tasks")
         .delete()
@@ -202,6 +300,7 @@ const TaskLayout = () => {
         }}
         onConfirmDelete={(id) => setTaskToDelete(id)}
         onToggleComplete={handleToggleComplete}
+        onOpenMaterial={handleOpenMaterial}
       />
 
       {isModalOpen && (

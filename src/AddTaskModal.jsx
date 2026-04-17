@@ -6,6 +6,32 @@ const defaultFormData = {
   deadline: "",
   priority: "Medium",
   status: "Pending",
+  materials: [],
+};
+
+const getFileType = (fileName = "") => {
+  const parts = fileName.split(".");
+  return parts.length > 1 ? parts.pop().toLowerCase() : "file";
+};
+
+const getFileColor = (type) => {
+  switch ((type || "").toLowerCase()) {
+    case "pdf":
+      return "border-red-100 bg-red-50 text-red-600";
+    case "ppt":
+    case "pptx":
+      return "border-orange-100 bg-orange-50 text-orange-600";
+    case "doc":
+    case "docx":
+      return "border-blue-100 bg-blue-50 text-blue-600";
+    case "jpg":
+    case "jpeg":
+    case "png":
+    case "webp":
+      return "border-purple-100 bg-purple-50 text-purple-600";
+    default:
+      return "border-gray-100 bg-gray-50 text-gray-500";
+  }
 };
 
 const AddTaskModal = ({ onClose, onAdd, initialData }) => {
@@ -19,11 +45,37 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
         deadline: initialData.deadline || "",
         priority: initialData.priority || "Medium",
         status: initialData.status || "Pending",
+        materials: Array.isArray(initialData.materials)
+          ? initialData.materials
+          : [],
       });
     } else {
       setFormData(defaultFormData);
     }
   }, [initialData]);
+
+  const handleFileUpload = (e) => {
+    const uploadedFiles = Array.from(e.target.files || []).map((file) => ({
+      name: file.name,
+      type: getFileType(file.name),
+      size: file.size,
+      rawFile: file,
+    }));
+
+    setFormData((prev) => ({
+      ...prev,
+      materials: [...prev.materials, ...uploadedFiles],
+    }));
+
+    e.target.value = "";
+  };
+
+  const removeMaterial = (indexToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: prev.materials.filter((_, index) => index !== indexToRemove),
+    }));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -60,7 +112,9 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
               className="w-full px-4 py-2.5 md:py-3 bg-gray-50 border border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all placeholder:text-gray-300"
               placeholder="e.g. Physics Lab Report"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
             />
           </div>
 
@@ -75,7 +129,9 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
                 className="w-full px-4 py-2.5 md:py-3 bg-gray-50 border border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
                 placeholder="e.g. Science"
                 value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, subject: e.target.value })
+                }
               />
             </div>
 
@@ -88,7 +144,9 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
                 type="date"
                 className="w-full px-4 py-2.5 md:py-3 bg-gray-50 border border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
                 value={formData.deadline}
-                onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, deadline: e.target.value })
+                }
               />
             </div>
           </div>
@@ -102,7 +160,9 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
                 <select
                   className="w-full px-4 py-2.5 md:py-3 bg-gray-50 border border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base outline-none appearance-none focus:ring-2 focus:ring-teal-500/20 transition-all cursor-pointer"
                   value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, priority: e.target.value })
+                  }
                 >
                   <option>High</option>
                   <option>Medium</option>
@@ -122,7 +182,9 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
                 <select
                   className="w-full px-4 py-2.5 md:py-3 bg-gray-50 border border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base outline-none appearance-none focus:ring-2 focus:ring-teal-500/20 transition-all cursor-pointer"
                   value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, status: e.target.value })
+                  }
                 >
                   <option>Pending</option>
                   <option>In Progress</option>
@@ -133,6 +195,48 @@ const AddTaskModal = ({ onClose, onAdd, initialData }) => {
                 </span>
               </div>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">
+              Materials
+            </label>
+
+            <div className="relative group mb-2 md:mb-3">
+              <input
+                type="file"
+                multiple
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                onChange={handleFileUpload}
+              />
+              <div className="w-full py-3 px-4 border-2 border-dashed border-gray-200 rounded-xl md:rounded-2xl text-center bg-white group-hover:bg-gray-50 transition-colors">
+                <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase">
+                  Browse Files
+                </span>
+              </div>
+            </div>
+
+            {formData.materials.length > 0 && (
+              <div className="bg-gray-50 p-2 md:p-3 rounded-xl md:rounded-2xl space-y-1.5 md:space-y-2 border border-gray-100 max-h-36 overflow-y-auto">
+                {formData.materials.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className={`flex justify-between items-center p-2 rounded-lg border text-[9px] md:text-[10px] font-bold ${getFileColor(
+                      file.type,
+                    )}`}
+                  >
+                    <span className="truncate pr-2">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeMaterial(index)}
+                      className="text-gray-400 font-bold px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-4 md:pt-6">

@@ -2,8 +2,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { LogOut, HelpCircle, X } from "lucide-react";
 import logo from "./Images/Hams.png";
-import profileImg from "./Images/Hams1.png";
 import { supabase } from "./lib/supabase";
+import NotificationBell from "./NotificationBell";
+import { checkReminders } from "./lib/reminderChecker";
+import {
+  ensureNotificationSettings,
+  requestBrowserNotificationPermission,
+} from "./lib/notifications";
 
 const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -109,6 +114,8 @@ const Dashboard = () => {
         loadSubjects(currentUser.id),
         loadExams(currentUser.id),
       ]);
+
+      await ensureNotificationSettings(currentUser.id);
     } catch (error) {
       console.error("Dashboard load error:", error.message);
     }
@@ -132,6 +139,47 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [loadDashboardData, navigate]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!tasks.length && !exams.length) return;
+
+    checkReminders({
+      userId: user.id,
+      tasks,
+      exams,
+    });
+
+    const interval = setInterval(() => {
+      checkReminders({
+        userId: user.id,
+        tasks,
+        exams,
+      });
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [user?.id, tasks, exams]);
+
+  const handleEnableBrowserNotifications = async () => {
+    const granted = await requestBrowserNotificationPermission();
+
+    if (!user?.id) return;
+
+    await supabase
+      .from("notification_settings")
+      .update({
+        enable_browser_notifications: granted,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id);
+
+    if (granted) {
+      alert("Browser notifications enabled.");
+    } else {
+      alert("Browser notification permission was not granted.");
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/", { replace: true });
@@ -151,7 +199,7 @@ const Dashboard = () => {
       >
         <div className="flex items-center justify-between mb-10 px-2 shrink-0">
           <div className="flex items-center gap-3 cursor-default">
-            <div className="w-11 h-11 rounded-full  bg-teal-50 flex items-center justify-center shadow-sm">
+            <div className="w-11 h-11 rounded-full bg-teal-50 flex items-center justify-center shadow-sm">
               <img src={logo} alt="Logo" className="w-10 h-10 object-contain" />
             </div>
 
@@ -188,7 +236,14 @@ const Dashboard = () => {
           ))}
         </nav>
 
-        <div className="mt-auto pt-5 border-t border-gray-100">
+        <div className="space-y-3 mt-auto pt-5 border-t border-gray-100">
+          <button
+            onClick={handleEnableBrowserNotifications}
+            className="w-full px-4 py-3 rounded-xl font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 transition-all text-xs uppercase tracking-widest"
+          >
+            Enable Browser Alerts
+          </button>
+
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95"
@@ -209,6 +264,8 @@ const Dashboard = () => {
           </button>
 
           <div className="flex items-center gap-3 ml-auto">
+            <NotificationBell userId={user?.id} />
+
             <div className="text-right hidden sm:block">
               <p className="text-[10px] font-black text-gray-400 leading-none mb-1 uppercase tracking-widest">
                 Student

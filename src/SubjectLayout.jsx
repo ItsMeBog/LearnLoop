@@ -211,6 +211,15 @@ const SubjectLayout = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const formatDisplayTime = (time) => {
+    if (!time) return "No schedule";
+    const [hours, minutes] = time.split(":");
+    const hour = Number(hours);
+    const suffix = hour >= 12 ? "PM" : "AM";
+    const formattedHour = hour % 12 || 12;
+    return `${formattedHour}:${minutes} ${suffix}`;
+  };
+
   const openSubjectFile = async (file) => {
     try {
       if (!file.storage_path) {
@@ -338,7 +347,7 @@ const SubjectLayout = () => {
                 </div>
 
                 <div className="text-[9px] md:text-[11px] text-gray-500 flex items-center gap-1.5 mb-2 md:mb-3 font-semibold truncate">
-                  <span>📅</span> {sub.schedule || "No schedule"}
+                  <span>📅</span> {formatDisplayTime(sub.schedule)}
                 </div>
 
                 <p className="text-[10px] md:text-xs text-gray-400 mb-4 line-clamp-2 h-7 md:h-8 leading-relaxed">
@@ -421,7 +430,7 @@ const SubjectLayout = () => {
                     Schedule
                   </p>
                   <p className="text-sm font-semibold text-slate-700">
-                    {selectedSubject.schedule || "No schedule set"}
+                    {formatDisplayTime(selectedSubject.schedule)}
                   </p>
                 </div>
 
@@ -545,8 +554,8 @@ const SubjectLayout = () => {
                   }
                 />
                 <input
+                  type="time"
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none text-sm"
-                  placeholder="Schedule"
                   value={formData.schedule}
                   onChange={(e) =>
                     setFormData({ ...formData, schedule: e.target.value })

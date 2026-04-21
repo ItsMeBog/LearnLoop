@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import mammoth from "mammoth";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -42,6 +43,29 @@ const StudyMaterial = () => {
     setView("flashcards");
   };
 
+  const extractPdfText = async (file) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    let fullText = "";
+    const pageLimit = Math.min(pdf.numPages, 10);
+
+    for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      fullText += content.items.map((item) => item.str).join(" ");
+      fullText += "\n\n";
+    }
+
+    return fullText;
+  };
+
+  const extractDocxText = async (file) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -49,21 +73,29 @@ const StudyMaterial = () => {
     setIsLoading(true);
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
       let fullText = "";
-      const pageLimit = Math.min(pdf.numPages, 10);
+      const fileName = file.name.toLowerCase();
 
-      for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
-        const page = await pdf.getPage(pageNumber);
-        const content = await page.getTextContent();
-        fullText += content.items.map((item) => item.str).join(" ");
-        fullText += "\n\n";
+      const isPdf =
+        file.type === "application/pdf" || fileName.endsWith(".pdf");
+
+      const isDocx =
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        fileName.endsWith(".docx");
+
+      if (isPdf) {
+        fullText = await extractPdfText(file);
+      } else if (isDocx) {
+        fullText = await extractDocxText(file);
+      } else {
+        throw new Error(
+          "Unsupported file type. Please upload a PDF or DOCX file.",
+        );
       }
 
       if (!fullText.trim()) {
-        throw new Error("No readable text found in PDF.");
+        throw new Error("No readable text found in the uploaded file.");
       }
 
       const API_BASE =
@@ -95,7 +127,7 @@ const StudyMaterial = () => {
             : [
                 {
                   question: "No flashcards generated",
-                  answer: "Try another PDF or check your AI backend.",
+                  answer: "Try another file or check your AI backend.",
                 },
               ],
         quiz: result.quiz || [],
@@ -107,8 +139,8 @@ const StudyMaterial = () => {
       setView("flashcards");
       setIsModalOpen(false);
     } catch (error) {
-      console.error("PDF/AI Error:", error);
-      alert(error.message || "Error processing PDF.");
+      console.error("File/AI Error:", error);
+      alert(error.message || "Error processing file.");
     } finally {
       setIsLoading(false);
       e.target.value = "";
@@ -368,7 +400,7 @@ const StudyMaterial = () => {
               <label className="relative border-2 border-dashed border-slate-200 rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center hover:border-teal-400 hover:bg-teal-50/20 transition-all cursor-pointer group">
                 <input
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,.docx"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
@@ -383,17 +415,17 @@ const StudyMaterial = () => {
                     size={40}
                   />
                 )}
-                <p className="font-bold text-slate-700 text-sm">
+                <p className="font-bold text-slate-700 text-sm text-center">
                   {isLoading
-                    ? "Reading PDF and generating questions..."
-                    : "Tap to upload PDF"}
+                    ? "Reading file and generating questions..."
+                    : "Tap to upload PDF or Word file"}
                 </p>
               </label>
 
               <div className="mt-6 bg-teal-50/50 border border-teal-100 p-4 rounded-xl flex gap-3">
                 <FileText className="text-teal-500 shrink-0" size={18} />
                 <p className="text-[11px] md:text-xs text-teal-800 leading-tight">
-                  <b>Note:</b> AI will scan the PDF content and generate
+                  <b>Note:</b> AI will scan the PDF or DOCX content and generate
                   flashcards and quiz questions automatically.
                 </p>
               </div>

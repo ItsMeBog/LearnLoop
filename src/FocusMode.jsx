@@ -1,8 +1,3 @@
-import {
-  createNotification,
-  ensureNotificationSettings,
-  sendBrowserNotification,
-} from "./lib/notifications";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit,
@@ -59,7 +54,7 @@ const FocusMode = () => {
   const [mode, setMode] = useState("focus");
   const [timeLeft, setTimeLeft] = useState(defaultSettings.focusDuration * 60);
   const [isActive, setIsActive] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [endTime, setEndTime] = useState(null);
 
   const [stats, setStats] = useState({
@@ -125,40 +120,6 @@ const FocusMode = () => {
     setIsActive(false);
     setEndTime(null);
 
-    if (userId) {
-      try {
-        const notificationSettings = await ensureNotificationSettings(userId);
-
-        const title =
-          mode === "focus" ? "Focus Session Complete" : "Break Complete";
-
-        const message =
-          mode === "focus"
-            ? "Great work. Your focus session is complete."
-            : "Your break is over. Time to get back to studying.";
-
-        if (notificationSettings.enable_focus_reminders) {
-          await createNotification({
-            userId,
-            title,
-            message,
-            type: "focus",
-            relatedType: "focus",
-            relatedId: null,
-          });
-
-          if (notificationSettings.enable_browser_notifications) {
-            sendBrowserNotification({
-              title,
-              body: message,
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Focus notification error:", error.message);
-      }
-    }
-
     if (mode === "focus") {
       const today = todayString();
       const yesterday = yesterdayString();
@@ -189,8 +150,8 @@ const FocusMode = () => {
 
       if (nextSessionCount % settings.sessionsBeforeLongBreak === 0) {
         const nextMode = "longBreak";
-        setMode(nextMode);
         const nextTime = settings.longBreak * 60;
+        setMode(nextMode);
         setTimeLeft(nextTime);
         saveTimerState({
           mode: nextMode,
@@ -200,8 +161,8 @@ const FocusMode = () => {
         });
       } else {
         const nextMode = "break";
-        setMode(nextMode);
         const nextTime = settings.shortBreak * 60;
+        setMode(nextMode);
         setTimeLeft(nextTime);
         saveTimerState({
           mode: nextMode,
@@ -222,7 +183,7 @@ const FocusMode = () => {
         endTime: null,
       });
     }
-  }, [mode, saveStatsToDb, saveTimerState, settings, stats, userId]);
+  }, [mode, saveStatsToDb, saveTimerState, settings, stats]);
 
   useEffect(() => {
     let mounted = true;
@@ -329,52 +290,65 @@ const FocusMode = () => {
         setStats(mapStatsRow(statsRow));
       }
 
-      if (mounted) {
-        const savedTimer = localStorage.getItem(TIMER_STORAGE_KEY);
+      if (!mounted) return;
 
-        if (savedTimer) {
-          try {
-            const parsed = JSON.parse(savedTimer);
-            const nextMode = parsed.mode || "focus";
-            const fallbackDuration =
-              nextMode === "focus"
-                ? normalizedSettings.focusDuration * 60
-                : nextMode === "break"
-                  ? normalizedSettings.shortBreak * 60
-                  : normalizedSettings.longBreak * 60;
+      const savedTimer = localStorage.getItem(TIMER_STORAGE_KEY);
 
-            if (parsed.isActive && parsed.endTime) {
-              const secondsLeft = Math.max(
-                0,
-                Math.ceil((parsed.endTime - Date.now()) / 1000),
-              );
+      if (savedTimer) {
+        try {
+          const parsed = JSON.parse(savedTimer);
+          const nextMode = parsed.mode || "focus";
 
+          const fallbackDuration =
+            nextMode === "focus"
+              ? normalizedSettings.focusDuration * 60
+              : nextMode === "break"
+                ? normalizedSettings.shortBreak * 60
+                : normalizedSettings.longBreak * 60;
+
+          if (parsed.isActive && parsed.endTime) {
+            const remaining = Math.max(
+              0,
+              Math.ceil((Number(parsed.endTime) - Date.now()) / 1000),
+            );
+
+            if (remaining > 0) {
               setMode(nextMode);
-              setIsActive(secondsLeft > 0);
-              setEndTime(secondsLeft > 0 ? parsed.endTime : null);
-              setTimeLeft(secondsLeft > 0 ? secondsLeft : 0);
-
-              if (secondsLeft === 0) {
-                clearTimerState();
-              }
+              setIsActive(true);
+              setEndTime(Number(parsed.endTime));
+              setTimeLeft(remaining);
             } else {
               setMode(nextMode);
               setIsActive(false);
               setEndTime(null);
-              setTimeLeft(parsed.timeLeft ?? fallbackDuration);
+              setTimeLeft(0);
+              clearTimerState();
             }
-          } catch {
-            setMode("focus");
-            setTimeLeft(normalizedSettings.focusDuration * 60);
-            clearTimerState();
+          } else {
+            setMode(nextMode);
+            setIsActive(false);
+            setEndTime(null);
+            setTimeLeft(
+              typeof parsed.timeLeft === "number"
+                ? parsed.timeLeft
+                : fallbackDuration,
+            );
           }
-        } else {
+        } catch {
           setMode("focus");
+          setIsActive(false);
+          setEndTime(null);
           setTimeLeft(normalizedSettings.focusDuration * 60);
+          clearTimerState();
         }
-
-        setLoading(false);
+      } else {
+        setMode("focus");
+        setIsActive(false);
+        setEndTime(null);
+        setTimeLeft(normalizedSettings.focusDuration * 60);
       }
+
+      setLoading(false);
     };
 
     loadData();
@@ -398,51 +372,44 @@ const FocusMode = () => {
   }, [getModeDurationInSeconds, mode, saveTimerState]);
 
   useEffect(() => {
-    if (loading) return;
-
-    if (!isActive) {
-      const duration = getModeDurationInSeconds(mode);
-      setTimeLeft((current) => {
-        if (endTime === null) return duration;
-        return current;
-      });
-    }
-  }, [mode, settings, isActive, loading, getModeDurationInSeconds, endTime]);
-
-  useEffect(() => {
-    if (!isActive || !endTime) return;
+    if (loading || !isActive || !endTime) return;
 
     const tick = async () => {
-      const secondsLeft = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
-      setTimeLeft(secondsLeft);
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
 
-      if (secondsLeft <= 0) {
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        setIsActive(false);
+        setEndTime(null);
         clearTimerState();
         await handleSessionCompletion();
       }
     };
 
     tick();
-    const interval = setInterval(tick, 250);
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
-  }, [isActive, endTime, handleSessionCompletion, clearTimerState]);
+  }, [loading, isActive, endTime, handleSessionCompletion, clearTimerState]);
 
   useEffect(() => {
-    if (!loading) {
-      saveTimerState({
-        mode,
-        timeLeft,
-        isActive,
-        endTime,
-      });
-    }
+    if (loading) return;
+
+    saveTimerState({
+      mode,
+      timeLeft,
+      isActive,
+      endTime,
+    });
   }, [mode, timeLeft, isActive, endTime, loading, saveTimerState]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   const saveNewSettings = async () => {
